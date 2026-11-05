@@ -31,7 +31,7 @@ full_validation_set = tf.keras.utils.image_dataset_from_directory(
    color_mode="rgb",
    batch_size=32, #Taille des batchs (number of samples - rows of data)
    image_size=(224, 224),
-   shuffle=True,
+   shuffle=False,
    seed=42, # Séparation étanche (de même ordre) validation-test subsets(take/skip)
    interpolation="bilinear",
    follow_links=False,
@@ -48,6 +48,7 @@ validation_set = full_validation_set.take(val_batches) # Number of elements of t
 # - Ensemble test pour l'ECE et l'évaluation de la robustesse (selon le protocole benchmark ImageNet-C appliqué au plantvillage dataset)
 test_set = full_validation_set.skip(val_batches) # Number of elements of this dataset that should be skipped to form the second dataset 
 
+#Apprentissage par transfert (Transfer learning)
 model = tf.keras.models.load_model("trained_model_efficient1.keras") #Changer nom si rerun
 base_model = model.layers[1] #Bloc EfficientNet - Index 1 structure sequential
 
@@ -63,13 +64,13 @@ model.summary()
 
 # 2 FINE-TUNING: technique d'apprentissage par transfert consistant à prendre un modèle pré-entraîné sur un jeu de données géant (base_model), puis à réentraîner une partie de ses couches sur un nouveau jeu de données plus spécifique.
 
-# Geler toutes les couches
 base_model.trainable = True
 
+# Geler toutes les couches
 for layer in base_model.layers:
    layer.trainable = False
 
-# Dégeler les 20 dernières couches
+# Dégeler les 20 dernières couches (sortie)
 for layer in base_model.layers[-20:]:
    if not isinstance(layer, tf.keras.layers.BatchNormalization): # Si il ne s'agit pas d'une couche de BatchNormalization,
       layer.trainable = True # Entraîner la couche.
@@ -79,11 +80,11 @@ for layer in base_model.layers[-20:]:
 
 print("Total des couches entraînables :", sum([layer.trainable for layer in base_model.layers]))
 
-# Re-compilation avec un Learning Rate très faible pour le fine-tuning
+# Re-compilation avec un Learning Rate très faible pour le fine-tuning (micro-ajustements modèle)
 model.compile(optimizer=tf.keras.optimizers.Adam(
     learning_rate=0.00001),loss='categorical_crossentropy',metrics=['accuracy'])
 
-# Model Training
+# Model Training - Adaptation 
 training_history = model.fit(x=training_set,validation_data=validation_set,epochs=5)
 
 # Model Evaluation on Training set
@@ -146,34 +147,4 @@ plt.ylabel("Actual Class", fontsize=20)
 plt.title("Plant Disease Prediction Confusion Matrix Fine-Tuned (Final)", fontsize=25)
 plt.show()
 
-# OTHER --------------------------------------------------------
-
-# def unfreeze_model(model):
-#     # We unfreeze the top 20 layers while leaving BatchNorm layers frozen
-#     for layer in model.layers[-20:]:
-#         if not isinstance(layer, layers.BatchNormalization):
-#             layer.trainable = True
-
-#     optimizer = keras.optimizers.Adam(learning_rate=1e-5)
-#     model.compile(
-#         optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"]
-#     )
-
-# unfreeze_model(model)
-
-# epochs = 4  # @param {type: "slider", min:4, max:10}
-# hist = model.fit(ds_train, epochs=epochs, validation_data=ds_test)
-# plot_hist(hist) --------------------------------------------------------
-# Meilleur modèle: 
-# checkpoint = tf.keras.callbacks.ModelCheckpoint(
-#     "best_efficientnet_finetuned.keras",
-#     monitor="val_accuracy",
-#     save_best_only=True,
-#     mode="max"
-# )
-# model.fit(
-#     training_set,
-#     validation_data=validation_set,
-#     epochs=5,
-#     callbacks=[checkpoint]
-# )
+# 3. CRÉATION D'UN TROISIÈME FICHIER (EXPORTER, robustesse + ECE + T scaling)
