@@ -36,7 +36,7 @@ full_validation_set = tf.keras.utils.image_dataset_from_directory(
    color_mode="rgb",
    batch_size=32, #Taille des batchs (number of samples - rows of data)
    image_size=(224, 224),
-   shuffle=True,
+   shuffle=False,
    seed=42, # Séparation étanche (de même ordre) validation-test subsets(take/skip)
    interpolation="bilinear",
    follow_links=False,
@@ -53,6 +53,8 @@ validation_set = full_validation_set.take(val_batches) # Number of elements of t
 # - Ensemble test pour l'ECE et l'évaluation de la robustesse (selon le protocole benchmark ImageNet-C appliqué au plantvillage dataset)
 test_set = full_validation_set.skip(val_batches) # Number of elements of this dataset that should be skipped to form the second dataset 
 
+#*** Shuffle false pour test***
+
 # 2. Building Model ----------------------------------
 from tensorflow.keras import layers
 
@@ -63,18 +65,35 @@ base_model = tf.keras.applications.EfficientNetB0(
     input_shape=(224,224,3) # Image layout and color (RGB)
 )
 
-# Freeze the base model to preserve learned features during intial training
+# Freeze the base model to preserve learned features (weights) during intial training
 base_model.trainable = False
 
-# Data augmentation - Impliqué dans framework d'entraînement
+# Augmentation des données - Impliqué dans framework d'entraînement - Éviter altérations sévères (HUE)
 data_augmentation = tf.keras.Sequential([
-    layers.RandomFlip("horizontal"),
-    layers.RandomRotation(0.15),
-    layers.RandomZoom(0.15),
-    layers.RandomContrast(0.2),
+    # 1. Géométrie de la prise de vue sur le terrain
+    layers.RandomFlip("horizontal_and_vertical"), # Les feuilles peuvent être prises dans tous les sens
+    layers.RandomRotation(0.2),                   # Rotation légèrement accentuée
+    layers.RandomZoom(0.2),                       # Simule la distance variable de l'opérateur (Zoom)
+    layers.RandomTranslation(0.1, 0.1),           # Translations aléatoires durant l'entraînement
+
+    # 2. Conditions lumineuses changeantes (Nuages, ensoleillement, ombres)
+    layers.RandomBrightness(factor=0.2),          # Variation de luminosité sur terrain (sur/sous-expositions)      
+    layers.RandomContrast(factor=0.2),            # Ajustement aléatoire du contraste 
+
+    # 3. Recadrage (rognage + décentrage) aléatoire des images pendant l'entraînement (extraction sous-région aléatoire)
+    layers.RandomCrop(height=224, width=224),     # Habituer le modèle aux photos mal cadrées 
+
+    # 4. Obstructions (Effet des feuilles cachées) - 5% de l'image est masquée (Force le modèle)
+    layers.RandomErasing(factor=1.0, scale=(0.01, 0.05))
+
 ])
 
-# Building model (Sequential)
+    # layers.RandomFlip("horizontal"),
+    # layers.RandomRotation(0.15),
+    # layers.RandomZoom(0.15),
+    # layers.RandomContrast(0.2),
+
+# Building model (Sequential) - Extraction features (caractéristiques)
 model = tf.keras.Sequential([
     data_augmentation,
 
@@ -101,7 +120,7 @@ model.build((None,224,224,3))
 # Dense(256) = adaptation aux maladies végétales
 # Dense(38) = décision finale parmi tes 38 classes
 # ReLU = permet au réseau d'apprendre des relations complexes
-# build() = seulement préparer la structure, pas apprendre
+# build() = seulement préparer la structure (images), pas apprendre
 
 model.summary()
 
@@ -129,6 +148,7 @@ with open("training_hist_efficient.json", "w") as f:
 
 training_history.history['val_accuracy']
 
+# Représentation d'entraînement (graphiques)
 epochs = [i for i in range (1,11)]
 plt.plot(epochs, training_history.history['accuracy'], color='red', label='Training Accuracy')
 plt.plot(epochs, training_history.history['val_accuracy'], color='blue', label='Validation Accuracy')
@@ -136,7 +156,7 @@ plt.xlabel("No. of Epochs")
 plt.ylabel("Accuracy Result")
 plt.title("Visualization of Accuracy Result")
 plt.legend()
-plt.show()
+plt.show() 
 
 # 3. Evaluation of final metrics for model evaluation (Test set virtuel 10%) ----------------------------------
 
@@ -152,12 +172,12 @@ y_pred = model.predict(test_set)
 y_pred,y_pred.shape
 predicted_categories = tf.argmax(y_pred,axis=1)
 
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix 
 
 print("\n=== CLASSIFICATION REPORT (SUR LE TEST SET - 10%) ===")
-print(classification_report(Y_true, predicted_categories, target_names=class_name))
+print(classification_report(Y_true, predicted_categories, target_names=class_name)) # Metrics
 
-cm = confusion_matrix(Y_true, predicted_categories)
+cm = confusion_matrix(Y_true, predicted_categories) # Matrice de confusion
 cm.shape
 
 # Confusion Matrix Visualization
