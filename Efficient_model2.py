@@ -53,8 +53,6 @@ validation_set = full_validation_set.take(val_batches) # Number of elements of t
 # - Ensemble test pour l'ECE et l'évaluation de la robustesse (selon le protocole benchmark ImageNet-C appliqué au plantvillage dataset)
 test_set = full_validation_set.skip(val_batches) # Number of elements of this dataset that should be skipped to form the second dataset 
 
-#*** Shuffle false pour test***
-
 # 2. Building Model ----------------------------------
 from tensorflow.keras import layers
 
@@ -68,13 +66,14 @@ base_model = tf.keras.applications.EfficientNetB0(
 # Freeze the base model to preserve learned features (weights) during intial training
 base_model.trainable = False
 
-# Augmentation des données - Impliqué dans framework d'entraînement - Éviter altérations sévères (HUE)
+# Augmentation des données (8 transformations) - Impliqué dans framework d'entraînement - Éviter altérations sévères (HUE)
+
 data_augmentation = tf.keras.Sequential([
     # 1. Géométrie de la prise de vue sur le terrain
     layers.RandomFlip("horizontal_and_vertical"), # Les feuilles peuvent être prises dans tous les sens
     layers.RandomRotation(0.2),                   # Rotation légèrement accentuée
     layers.RandomZoom(0.2),                       # Simule la distance variable de l'opérateur (Zoom)
-    layers.RandomTranslation(0.1, 0.1),           # Translations aléatoires durant l'entraînement
+    layers.RandomTranslation(0.1, 0.1),           # Translations aléatoires durant l'entraînement (height et width)
 
     # 2. Conditions lumineuses changeantes (Nuages, ensoleillement, ombres)
     layers.RandomBrightness(factor=0.2),          # Variation de luminosité sur terrain (sur/sous-expositions)      
@@ -87,11 +86,6 @@ data_augmentation = tf.keras.Sequential([
     layers.RandomErasing(factor=1.0, scale=(0.01, 0.05))
 
 ])
-
-    # layers.RandomFlip("horizontal"),
-    # layers.RandomRotation(0.15),
-    # layers.RandomZoom(0.15),
-    # layers.RandomContrast(0.2),
 
 # Building model (Sequential) - Extraction features (caractéristiques)
 model = tf.keras.Sequential([
@@ -132,7 +126,7 @@ train_loss, train_acc = model.evaluate(training_set)
 
 print(train_loss, train_acc)
 
-#Model on Validation set
+# Model on Validation set
 val_loss, val_acc = model.evaluate(validation_set)
 
 print(val_loss, val_acc)
@@ -155,6 +149,14 @@ plt.plot(epochs, training_history.history['val_accuracy'], color='blue', label='
 plt.xlabel("No. of Epochs")
 plt.ylabel("Accuracy Result")
 plt.title("Visualization of Accuracy Result")
+plt.legend()
+plt.show() 
+
+plt.plot(epochs, training_history.history['loss'] , color='red', label='Training Loss')
+plt.plot(epochs, training_history.history['val_loss'] , color='blue', label='Validation Loss')
+plt.xlabel("No. of Epochs")
+plt.ylabel("Loss Result")
+plt.title("Visualization of Loss Result")
 plt.legend()
 plt.show() 
 
