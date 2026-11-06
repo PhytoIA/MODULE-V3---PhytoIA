@@ -117,6 +117,14 @@ plt.title("Visualization of Accuracy Result - Fine-Tuning")
 plt.legend()
 plt.show()
 
+plt.plot(epochs, training_history.history['loss'] , color='red', label='Training Loss')
+plt.plot(epochs, training_history.history['val_loss'] , color='blue', label='Validation Loss')
+plt.xlabel("No. of Epochs")
+plt.ylabel("Loss Result")
+plt.title("Visualization of Loss Result")
+plt.legend()
+plt.show() 
+
 # 3. Evaluation of final metrics for model evaluation (Test set virtuel 10%) 
 
 #Récupération des noms des classes 
@@ -148,3 +156,6 @@ plt.title("Plant Disease Prediction Confusion Matrix Fine-Tuned (Final)", fontsi
 plt.show()
 
 # 3. CRÉATION D'UN TROISIÈME FICHIER (EXPORTER, robustesse + ECE + T scaling)
+
+
+
